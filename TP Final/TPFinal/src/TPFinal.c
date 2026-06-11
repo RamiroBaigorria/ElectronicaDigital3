@@ -28,6 +28,10 @@
 uint32_t variableUsadaParaDAC = 0; 	// La usaremos mas adelante en algun momento (NO SE USA TODAVIA)
 uint32_t adc_buffer[10]; 			// Buffer en RAM para almacenar las distancias
 
+//Variables tipo BANDERAS utiles para que el auto no salga disparado apenas se prende el sistema completo
+volatile uint32_t velocidad_duty_cycle = 0;  // Empieza en 0% (Frenado)
+volatile uint8_t auto_en_marcha = 0;         // 0 = Esperando orden, 1 = Corriendo
+
 void configPIN(void);
 void configTIMER0(void);
 void configTIMER1(void);
@@ -47,6 +51,10 @@ int main(void) {
 	configDMA();
 	configNVIC();
 	configUART();
+
+	// Habilitar físicamente los temporizadores para que empiecen a correr
+	TIM_Enable(LPC_TIM0);
+	TIM_Enable(LPC_TIM1);
 
 	while(1){
 		return 0 ;
@@ -119,12 +127,13 @@ void configNVIC(void){
 void configUART(void){ //Estos drivers son del fabricante, no de Trujillo (No se si el tiene)
 
 	    UART_CFG_T cfgUART;
+
+	    UART_ConfigStructInit(&cfgUART);		// Cargamos valores por defecto al inicio
+
 	    cfgUART.baudRate = 9600;             	// Velocidad estándar de fábrica de los módulos Bluetooth
 	    cfgUART.parity   = UART_PARITY_NONE;   	// Sin bit de paridad
 	    cfgUART.dataBits = UART_DBITS_8;     	// 8 bits de datos
 	    cfgUART.stopBits = UART_STOPBIT_1;     	// 1 bit de parada
-
-	    UART_ConfigStructInit(&cfgUART);	// Verificar bien esta funcion de carga de formulario, porque me figura error
 
 	    UART_PinConfig(UART_TX0_P0_2);		// Es lo mismo que el "PINSEL_CFG_T cfgPIN2" del "void cfgPIN(void)"
 	    UART_PinConfig(UART_RX0_P0_3);		// Es lo mismo que el "PINSEL_CFG_T cfgPIN3" del "void cfgPIN(void)"
@@ -164,7 +173,7 @@ void configTIMER0(void){
 	TIM_InitTimer(LPC_TIM0, &cfgTIM0);
 	TIM_ConfigMatch(LPC_TIM0, &cfgMATCH);
 
-	//TIM_Enable(LPC_TIM0);				//¿Hace falta?
+	//TIM_Enable(LPC_TIM0);				//¿Hace falta? Main
 
 }
 
@@ -195,7 +204,7 @@ void configTIMER1(void){
 	TIM_ConfigMatch(LPC_TIM1, &cfgMATCH0);
 	TIM_ConfigMatch(LPC_TIM1, &cfgMATCH1);
 
-	//TIM_Enable(LPC_TIM1);				//¿Hace falta?
+	//TIM_Enable(LPC_TIM1);				//¿Hace falta? Main
 }
 
 /* ==========================================================
@@ -212,8 +221,8 @@ void configADC(void){
 	ADC_BurstDisable();
   //ADC_StartCmd(ADC_START_ON_MAT01);			//Puse el ADC_PowerUp() directamente en el HANDLER del TIMER0 y nos evitamos el ADC_StartCmd(...)
   //ADC_EdgeStartConfig(ADC_START_ON_RISING);
-	ADC_IntDisable(ADC_INT_CH0);
-  //ADC_PowerUp(); 								//Lo puse directamente en el HANDLER del TIMER0 y nos evitamos el ADC_StartCmd(...)
+	ADC_PowerUp();
+	ADC_IntDisable(ADC_INT_CH0);				//Lo desactivamos ya que el que se va a encargar de manejar el fin de conversion es el Request del DMA
 
 }
 
@@ -290,20 +299,23 @@ void configDMA(){
 void TIMER0_IRQHandler(void){
 
 	if(TIM_GetIntStatus(LPC_TIM0, TIM_MR1_INT) == 1){
-			ADC_PowerUp();
+			ADC_StartCmd(ADC_START_NOW);
 			TIM_ClearIntPending(LPC_TIM0, TIM_MR1_INT);
 		}
 }
 
-void ADC_IRQHandler(void){
-
-	if(ADC_ChannelGetStatus(ADC_CHANNEL_0, ADC_DATA_DONE) == 1){
-
-		adcValue = ADC_ChannelGetData(ADC_CHANNEL_0);
-		GPDMA_ChannelStart(GPDMA_CH_1);
-	}
-
-}
+/*	Al final el ADC_IRQHandler no va ya que El DMA se dispara por hardware automáticamente cuando el ADC termina de convertir
+ *
+ * void ADC_IRQHandler(void){
+ *
+ *	if(ADC_ChannelGetStatus(ADC_CHANNEL_0, ADC_DATA_DONE) == 1){
+ *
+ *		adcValue = ADC_ChannelGetData(ADC_CHANNEL_0);
+ *		GPDMA_ChannelStart(GPDMA_CH_1);
+ *	}
+ *
+ *}
+ */
 
 void TIMER1_IRQHandler(void){
 	if(TIM_GetIntStatus(LPC_TIM1, TIM_MR1_INT) == 1){
@@ -362,12 +374,45 @@ void DMA_IRQHandler(void){
 					GPIO_SetPins  (PORT_1, PIN_MOTOR_IZQ_A); // Giro horario
 					GPIO_ClearPins(PORT_1, PIN_MOTOR_IZQ_B);
 					GPIO_SetPins  (PORT_1, PIN_MOTOR_DER_A); // Giro horario
-					GPIO_ClearPins(PORT_, PIN_MOTOR_DER_B);
+					GPIO_ClearPins(PORT_1, PIN_MOTOR_DER_B);
 				}
 
 	        // Limpiar bandera y volver a encender el canal para la próxima ráfaga de mediciones
 			GPDMA_ClearIntPending(GPDMA_CLR_INTTC, GPDMA_CH_1);
 	        GPDMA_ChannelStart(GPDMA_CH_1);
 	}
+}
+
+
+//------------HANDLER DEL UART para REVISAR------------//
+void UART0_IRQHandler(void) {
+    if (UART_GetIntId(LPC_UART0) & UART_IIR_INTSTAT_PEND) {
+        uint8_t datoRecibido = UART_ReceiveByte(LPC_UART0);
+
+        // Si el auto estaba quieto y mandamos la 'W' de avanzar, arranca el sistema
+        if (datoRecibido == 'W' && auto_en_marcha == 0) {
+            velocidad_duty_cycle = 60; // Arranca a una velocidad segura del 60%
+            auto_en_marcha = 1;        // Rompe el bucle del main y activa timers
+        }
+
+        // Comandos de control en movimiento
+        if (auto_en_marcha == 1) {
+            switch (datoRecibido) {
+                case 'U': // Subir velocidad dinámicamente
+                    if (velocidad_duty_cycle < 90) velocidad_duty_cycle += 10;
+                    break;
+                case 'D': // Bajar velocidad dinámicamente
+                    if (velocidad_duty_cycle > 20) velocidad_duty_cycle -= 10;
+                    break;
+                case 'S': // Parada de emergencia inalámbrica
+                    velocidad_duty_cycle = 0;
+                    // Opcional: apagar pines de motores acá de forma directa
+                    GPIO_ClearPins(PORT_1, PIN_MOTOR_IZQ_A | PIN_MOTOR_IZQ_B | PIN_MOTOR_DER_A | PIN_MOTOR_DER_B);
+                    break;
+            }
+            // Actualizar el ancho de pulso del Timer
+            TIM_UpdateMatchValue(LPC_TIM1, 1, velocidad_duty_cycle);
+        }
+    }
 }
 
