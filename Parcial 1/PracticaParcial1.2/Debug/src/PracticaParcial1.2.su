@@ -1,0 +1,15 @@
+C:\nxp\CMSISv2p00_LPC17xx\inc/core_cm3.h:1012:22:NVIC_SetPriority	16	static
+../src/PracticaParcial1.2.c:36:5:main	8	static
+../src/PracticaParcial1.2.c:102:6:init_leds	4	static
+../src/PracticaParcial1.2.c:109:6:init_eint0	4	static
+../src/PracticaParcial1.2.c:124:6:init_systick_timer	8	static
+../src/PracticaParcial1.2.c:135:6:init_timer0	4	static
+../src/PracticaParcial1.2.c:152:6:init_timer1	4	static
+../src/PracticaParcial1.2.c:168:6:init_adc	4	static
+../src/PracticaParcial1.2.c:189:6:init_priorities	8	static
+../src/PracticaParcial1.2.c:197:6:update_leds	16	static
+../src/PracticaParcial1.2.c:210:6:EINT0_IRQHandler	4	static
+../src/PracticaParcial1.2.c:227:6:TIMER0_IRQHandler	4	static
+../src/PracticaParcial1.2.c:236:6:SysTick_IRQHandler	4	static
+../src/PracticaParcial1.2.c:242:6:TIMER1_IRQHandler	4	static
+../src/PracticaParcial1.2.c:254:6:ADC_IRQHandler	4	static

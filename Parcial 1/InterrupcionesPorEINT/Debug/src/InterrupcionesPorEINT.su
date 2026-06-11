@@ -1,0 +1,6 @@
+C:\nxp\CMSISv2p00_LPC17xx\inc/core_cm3.h:928:22:NVIC_EnableIRQ	16	static
+../src/InterrupcionesPorEINT.c:17:5:main	16	static
+../src/InterrupcionesPorEINT.c:40:6:retardo	24	static
+../src/InterrupcionesPorEINT.c:45:6:confGPIO	4	static
+../src/InterrupcionesPorEINT.c:49:6:confIntExt	8	static
+../src/InterrupcionesPorEINT.c:57:6:EINT0_IRQHandler	4	static
