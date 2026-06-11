@@ -6,11 +6,11 @@
  * Generated linker script file for LPC1769
  * Created from linkscript.ldt by FMCreateLinkLibraries
  * Using Freemarker v2.3.30
- * MCUXpresso IDE v25.6 [Build 136] [2025-06-27] on 11 jun. 2026 00:17:18
+ * MCUXpresso IDE v25.6 [Build 136] [2025-06-27] on 11 jun. 2026 00:17:17
  */
 
-INCLUDE "ADC_a_PWM_Debug_library.ld"
-INCLUDE "ADC_a_PWM_Debug_memory.ld"
+INCLUDE "ADC_EXTI_DAC_Onda_Debug_library.ld"
+INCLUDE "ADC_EXTI_DAC_Onda_Debug_memory.ld"
 
 ENTRY(ResetISR)
 

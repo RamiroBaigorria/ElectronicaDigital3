@@ -23,7 +23,7 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := ADC_a_DAC_usando_DMA
+BUILD_ARTIFACT_NAME := ADC_EXTI_DAC_Onda
 BUILD_ARTIFACT_EXTENSION := axf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
@@ -35,24 +35,24 @@ all:
 	+@$(MAKE) --no-print-directory main-build && $(MAKE) --no-print-directory post-build
 
 # Main-build Target
-main-build: ADC_a_DAC_usando_DMA.axf
+main-build: ADC_EXTI_DAC_Onda.axf
 
 # Tool invocations
-ADC_a_DAC_usando_DMA.axf: $(OBJS) $(USER_OBJS) makefile $(OPTIONAL_TOOL_DEPS)
+ADC_EXTI_DAC_Onda.axf: $(OBJS) $(USER_OBJS) makefile $(OPTIONAL_TOOL_DEPS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MCU Linker'
-	arm-none-eabi-gcc -nostdlib -Xlinker -Map="ADC_a_DAC_usando_DMA.map" -Xlinker --cref -Xlinker --gc-sections -Xlinker -print-memory-usage -mcpu=cortex-m3 -mthumb -T ADC_a_DAC_usando_DMA_Debug.ld -o "ADC_a_DAC_usando_DMA.axf" $(OBJS) $(USER_OBJS) $(LIBS) -lCMSISv2p00_LPC17xx
+	arm-none-eabi-gcc -nostdlib -Xlinker -Map="ADC_EXTI_DAC_Onda.map" -Xlinker --cref -Xlinker --gc-sections -Xlinker -print-memory-usage -mcpu=cortex-m3 -mthumb -T ADC_EXTI_DAC_Onda_Debug.ld -o "ADC_EXTI_DAC_Onda.axf" $(OBJS) $(USER_OBJS) $(LIBS) -lCMSISv2p00_LPC17xx
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) ADC_a_DAC_usando_DMA.axf
+	-$(RM) ADC_EXTI_DAC_Onda.axf
 	-@echo ' '
 
 post-build:
 	-@echo 'Performing post-build steps'
-	-arm-none-eabi-size "ADC_a_DAC_usando_DMA.axf"; # arm-none-eabi-objcopy -v -O binary "ADC_a_DAC_usando_DMA.axf" "ADC_a_DAC_usando_DMA.bin" ; # checksum -p LPC1769 -d "ADC_a_DAC_usando_DMA.bin";
+	-arm-none-eabi-size "ADC_EXTI_DAC_Onda.axf"; # arm-none-eabi-objcopy -v -O binary "ADC_EXTI_DAC_Onda.axf" "ADC_EXTI_DAC_Onda.bin" ; # checksum -p LPC1769 -d "ADC_EXTI_DAC_Onda.bin";
 	-@echo ' '
 
 .PHONY: all clean dependents main-build post-build

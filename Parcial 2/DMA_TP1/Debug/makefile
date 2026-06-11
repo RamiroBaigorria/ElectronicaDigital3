@@ -41,7 +41,7 @@ main-build: DMA_TP1.axf
 DMA_TP1.axf: $(OBJS) $(USER_OBJS) makefile $(OPTIONAL_TOOL_DEPS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MCU Linker'
-	arm-none-eabi-gcc -nostdlib -L"C:\nxp\CMSISv2p00_LPC17xx\Debug" -Xlinker -Map="DMA_TP1.map" -Xlinker --cref -Xlinker --gc-sections -Xlinker -print-memory-usage -mcpu=cortex-m3 -mthumb -T DMA_TP1_Debug.ld -o "DMA_TP1.axf" $(OBJS) $(USER_OBJS) $(LIBS) -lCMSISv2p00_LPC17xx
+	arm-none-eabi-gcc -nostdlib -Xlinker -Map="DMA_TP1.map" -Xlinker --cref -Xlinker --gc-sections -Xlinker -print-memory-usage -mcpu=cortex-m3 -mthumb -T DMA_TP1_Debug.ld -o "DMA_TP1.axf" $(OBJS) $(USER_OBJS) $(LIBS) -lCMSISv2p00_LPC17xx
 	@echo 'Finished building target: $@'
 	@echo ' '
 

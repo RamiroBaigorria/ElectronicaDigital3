@@ -4,17 +4,17 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../src/DMA_TP1.c \
+../src/ADC_EXTI_DAC_Onda.c \
 ../src/cr_startup_lpc175x_6x.c \
 ../src/crp.c 
 
 C_DEPS += \
-./src/DMA_TP1.d \
+./src/ADC_EXTI_DAC_Onda.d \
 ./src/cr_startup_lpc175x_6x.d \
 ./src/crp.d 
 
 OBJS += \
-./src/DMA_TP1.o \
+./src/ADC_EXTI_DAC_Onda.o \
 ./src/cr_startup_lpc175x_6x.o \
 ./src/crp.o 
 
@@ -31,7 +31,7 @@ src/%.o: ../src/%.c src/subdir.mk
 clean: clean-src
 
 clean-src:
-	-$(RM) ./src/DMA_TP1.d ./src/DMA_TP1.o ./src/cr_startup_lpc175x_6x.d ./src/cr_startup_lpc175x_6x.o ./src/crp.d ./src/crp.o
+	-$(RM) ./src/ADC_EXTI_DAC_Onda.d ./src/ADC_EXTI_DAC_Onda.o ./src/cr_startup_lpc175x_6x.d ./src/cr_startup_lpc175x_6x.o ./src/crp.d ./src/crp.o
 
 .PHONY: clean-src
 
