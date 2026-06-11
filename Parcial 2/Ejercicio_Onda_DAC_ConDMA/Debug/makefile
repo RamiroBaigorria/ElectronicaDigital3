@@ -41,7 +41,7 @@ main-build: Ejercicio_Onda_DAC_ConDMA.axf
 Ejercicio_Onda_DAC_ConDMA.axf: $(OBJS) $(USER_OBJS) makefile $(OPTIONAL_TOOL_DEPS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MCU Linker'
-	arm-none-eabi-gcc -nostdlib -L"C:\nxp\CMSISv2p00_LPC17xx\Debug" -Xlinker -Map="Ejercicio_Onda_DAC_ConDMA.map" -Xlinker --cref -Xlinker --gc-sections -Xlinker -print-memory-usage -mcpu=cortex-m3 -mthumb -T Ejercicio_Onda_DAC_ConDMA_Debug.ld -o "Ejercicio_Onda_DAC_ConDMA.axf" $(OBJS) $(USER_OBJS) $(LIBS) -lCMSISv2p00_LPC17xx
+	arm-none-eabi-gcc -nostdlib -Xlinker -Map="Ejercicio_Onda_DAC_ConDMA.map" -Xlinker --cref -Xlinker --gc-sections -Xlinker -print-memory-usage -mcpu=cortex-m3 -mthumb -T Ejercicio_Onda_DAC_ConDMA_Debug.ld -o "Ejercicio_Onda_DAC_ConDMA.axf" $(OBJS) $(USER_OBJS) $(LIBS) -lCMSISv2p00_LPC17xx
 	@echo 'Finished building target: $@'
 	@echo ' '
 
