@@ -11,64 +11,45 @@
 #include "lpc17xx_dac.h"
 #include "lpc17xx_gpdma.h"
 
-uint32_t adcValue = 0;
 
 void cfgPIN();
-void cfgADC();
 void cfgTIMER0();
+void cfgTIMER1();
+void cfgADC();
 void cfgDAC();
 void cfgDMA();
 
-void testearDistancia();
+
 
 int main(void) {
 
 	cfgPIN();
-	cfgADC();
 	cfgTIMER0();
+	cfgTIMER1();
+	cfgADC();
 	cfgDAC();
 	cfgDMA();
 
-    while(1) {
-    }
-    return 0 ;
+	while(1){
+		return 0 ;
+	}
 }
 
-//configuro un led de control en caso de quje ocurra un erro de transferencia del gpdma
-void cfgPIN(){
-	PINSEL_CFG_T cfgP22;
-	cfgP22.port = PORT_0;
-	cfgP22.pin = PIN_22;
-	cfgP22.func = PINSEL_FUNC_00;
-	cfgP22.mode = PINSEL_PULLDOWN;
-	cfgP22.openDrain = DISABLE;
+void cfgPIN(void){
+	PINSEL_CFG_T cfgPINSEL;
+		cfgPINSEL.port 		= PORT_0;
+		cfgPINSEL.pin  		= PIN_0;
+		cfgPINSEL.func 		= PINSEL_FUNC_00;
+		cfgPINSEL.mode 		= PINSEL_TRISTATE;
+		cfgPINSEL.openDrain = DISABLE;
 
-	PINSEL_ConfigPin(&cfgP22);
+	PINSEL_ConfigPin(&cfgPINSEL);
 
-	GPIO_SetDir(PORT_0, 0x400000, GPIO_OUTPUT);
+	GPIO_SetDir(PORT_0, 1<<0, GPIO_OUTPUT);
+	GPIO_SetPinState(PORT_0, 1<<0, SET);
 	GPIO_ClearPins(PORT_0, 0x400000);
 }
 
-//usamos el adc para tomar muestras del valor detectado por el sensor infrarrojo en ese momento
-//y poder calcular la distancia
-//utilizamos el timer para iniciar la conversion del adc, asi q deshabilitamos la interrupciondel adc
-void cfgADC(){
-	ADC_Init(200000);
-	ADC_PinConfig(ADC_CHANNEL_0);
-	ADC_BurstDisable();
-	ADC_StartCmd(ADC_START_NOW); //o ADC_START_NOW y entro a la interrupcion del timer
-	ADC_ChannelEnable(ADC_CHANNEL_0);
-	ADC_EdgeStartConfig(ADC_START_ON_RISING);
-	ADC_IntDisable(ADC_INT_CH0); //o disable si uso el START_NOW
-
-	//NVIC_EnableIRQ(ADC_IRQn);
-	//NVIC_Clear_PendingIRQ(ADC_IRQn);
-	//NVIC_SetPriority(); //para cuando unamos el proyecto
-
-	ADC_PowerUp(); //capaz lo tenemos q poner en otro lado dsp
-}
-
-//utilizamos el timer para decirle al adc cuando tomar una muestra cada cierto tiempo
 void cfgTIMER0(){
 	TIM_TIMERCFG_T timCFG;
 	timCFG.prescaleOpt = TIM_US;
@@ -91,7 +72,54 @@ void cfgTIMER0(){
 	TIM_ConfigMatch(LPC_TIM0, &matchCFG);
 }
 
-//usamos el dac para mostrar el valor de tensión equivalente a la distancia tomada por el sensor infra.
+void cfgTIMER1(void){
+
+	TIM_TIMERCFG_T timer1cfg = {prescaleOpt: TIM_US, prescaleValue: 100};  // DEFINIR SI VAMOS A USAR PRESCALER
+	TIM_MATCHCFG_T match0cfg;
+	TIM_MATCHCFG_T match1cfg;
+
+	match0cfg.channel = 0;			// USO MAT1.0 para T
+	match0cfg.intEn = DISABLE;
+	match0cfg.stopEn = DISABLE;
+	match0cfg.resetEn = ENABLE;
+	match0cfg.extOpt = 0;
+	match0cfg.matchValue = 100;
+
+	match1cfg.channel = 1;			// USO MAT1.1 para el duty cycle
+	match1cfg.intEn = ENABLE;
+	match1cfg.stopEn = DISABLE;
+	match1cfg.resetEn = ENABLE;
+	match1cfg.extOpt = 0;
+	match1cfg.matchValue = 50;
+	//ES EN ESTE CASO QUE MATCHVALUE DEBE VALES LO QUE SE INGRESE DEL UART
+
+	NVIC_EnableIRQ(TIMER1_IRQn);
+
+	TIM_InitTimer(LPC_TIM1, &timer1cfg);
+	TIM_ConfigMatch(LPC_TIM1, &match0cfg);
+	TIM_ConfigMatch(LPC_TIM1, &match1cfg);
+	TIM_Enable(LPC_TIM1);
+}
+
+//usamos el adc para tomar muestras del valor detectado por el sensor infrarrojo en ese momento
+//y poder calcular la distancia
+//utilizamos el timer para iniciar la conversion del adc, asi q deshabilitamos la interrupciondel adc
+void cfgADC(){
+	ADC_Init(200000);
+	ADC_PinConfig(ADC_CHANNEL_0);
+	ADC_BurstDisable();
+	ADC_StartCmd(ADC_START_NOW); //o ADC_START_NOW y entro a la interrupcion del timer
+	ADC_ChannelEnable(ADC_CHANNEL_0);
+	ADC_EdgeStartConfig(ADC_START_ON_RISING);
+	ADC_IntDisable(ADC_INT_CH0); //o disable si uso el START_NOW
+
+	//NVIC_EnableIRQ(ADC_IRQn);
+	//NVIC_Clear_PendingIRQ(ADC_IRQn);
+	//NVIC_SetPriority(); //para cuando unamos el proyecto
+
+	ADC_PowerUp(); //capaz lo tenemos q poner en otro lado dsp
+}
+
 void cfgDAC(){
 	DAC_CONVERTER_CFG_T dacCFG;
 	dacCFG.doubleBuffer = DISABLE;
@@ -102,7 +130,7 @@ void cfgDAC(){
 	DAC_ConfigDAConverterControl(&dacCFG);
 	DAC_SetBias(DAC_700uA);
 }
-//utilizamos el dma para pasar las muestras del adc al dac (por ahora)
+
 void cfgDMA(){
 	GPDMA_Endpoint_T scrCFG;
 	scrCFG.width = GPDMA_HALFWORD; //xq el adc usa solo 12bits y el dac 10bists, poner palabra completa no es eficiente
@@ -136,6 +164,10 @@ void cfgDMA(){
 	NVIC_SetPriority(DMA_IRQn, 1); //para cuando unamos el proyecto
 }
 
+/*
+ * =========================HANDLERs=========================
+ */
+
 void TIMER0_IRQHandler(void){
 	ADC_StartCmd(ADC_START_NOW);
 	if(ADC_ChannelGetStatus(ADC_CHANNEL_0, ADC_DATA_DONE)){
@@ -146,6 +178,13 @@ void TIMER0_IRQHandler(void){
 	GPDMA_ChannelStart(GPDMA_CH_0);
 
 	TIM_ClearIntPending(LPC_TIM0, TIM_MR1_INT);
+}
+
+void TIMER1_IRQHandler(void){
+	if(TIM_GetIntStatus(LPC_TIM1, TIM_MR1_INT) == SET){
+		GPIO_ClearPins(PORT_0,1<<0);
+		TIM_ClearIntPending(LPC_TIM1, TIM_MR1_INT);
+	}
 }
 
 void DMA_IRQHandler(void){
@@ -167,3 +206,5 @@ void DMA_IRQHandler(void){
 void testearDistancia(){
 	return;
 }
+
+
