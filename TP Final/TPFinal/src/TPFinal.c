@@ -11,15 +11,13 @@
 #include "lpc17xx_dac.h"
 #include "lpc17xx_gpdma.h"
 
-
-void cfgPIN();
-void cfgTIMER0();
-void cfgTIMER1();
-void cfgADC();
-void cfgDAC();
-void cfgDMA();
-
-
+void cfgPIN(void);
+void cfgTIMER0(void);
+void cfgTIMER1(void);
+void cfgADC(void);
+void cfgDAC(void);
+void cfgDMA(void);
+void cfgNVIC(void);
 
 int main(void) {
 
@@ -29,11 +27,19 @@ int main(void) {
 	cfgADC();
 	cfgDAC();
 	cfgDMA();
+	cfgNVIC();
 
 	while(1){
 		return 0 ;
 	}
 }
+
+
+
+/* ==========================================================
+ *                         OTROS
+ * ==========================================================
+ */
 
 void cfgPIN(void){
 	PINSEL_CFG_T cfgPINSEL;
@@ -50,77 +56,108 @@ void cfgPIN(void){
 	GPIO_ClearPins(PORT_0, 0x400000);
 }
 
-void cfgTIMER0(){
-	TIM_TIMERCFG_T timCFG;
-	timCFG.prescaleOpt = TIM_US;
-	timCFG.prescaleValue = 1; //provisorio, cambiar si es necesario
+void cfgNVIC(void){
+	//Prioridades PROVISORIAS
 
-	TIM_MATCHCFG_T matchCFG;
-	matchCFG.channel = TIM_MATCH_1;
-	matchCFG.intEn = ENABLE;  //o enable si uso START_NOW
-	matchCFG.stopEn = DISABLE;
-	matchCFG.resetEn = ENABLE;
-	matchCFG.extOpt = TIM_NOTHING;
-	matchCFG.matchValue = 125000; //para q interrumpa cada 10ms
+	NVIC_EnableIRQ(TIMER0_IRQn);
+	NVIC_ClearPendingIRQ(TIMER0_IRQn); 	//PROVISORIO: en caso de que usemos el START_NOW
+	NVIC_SetPriority(TIMER0_IRQn, 0);
 
-	TIM_InitTimer(LPC_TIM0, &timCFG);
+	NVIC_EnableIRQ(TIMER1_IRQn);
+	NVIC_ClearPendingIRQ(TIMER0_IRQn); 	//PROVISORIO: en caso de que usemos el START_NOW
+	NVIC_SetPriority(TIMER0_IRQn, 1);
 
-	NVIC_EnableIRQ(TIMER0_IRQn); //en caso de q usemos el START_NOW
-	NVIC_ClearPendingIRQ(TIMER0_IRQn); //en caso de q usemos el START_NOW
-	NVIC_SetPriority(TIMER0_IRQn, 1); //para cuando unamos el proyecto
+	NVIC_EnableIRQ(ADC_IRQn);
+	NVIC_Clear_PendingIRQ(ADC_IRQn);
+	NVIC_SetPriority(ADC_IRQn, 2);
 
-	TIM_ConfigMatch(LPC_TIM0, &matchCFG);
+	NVIC_EnableIRQ(DMA_IRQn);
+	NVIC_ClearPendingIRQ(DMA_IRQn);
+	NVIC_SetPriority(DMA_IRQn, 3);
+
+
+}
+
+void testearDistancia(){
+	return;
+}
+
+/* ==========================================================
+ *                         TIMERs
+ * ==========================================================
+ */
+
+void cfgTIMER0(void){
+	TIM_TIMERCFG_T cfgTIM0;
+	cfgTIM0.prescaleOpt	 = TIM_US;
+	cfgTIM0.prescaleValue = 1; 			//PROVISORIO: cambiar si es necesario
+
+	TIM_MATCHCFG_T cfgMATCH;
+	cfgMATCH.channel	= TIM_MATCH_1;
+	cfgMATCH.intEn 		= ENABLE;
+	cfgMATCH.stopEn 	= DISABLE;
+	cfgMATCH.resetEn 	= ENABLE;
+	cfgMATCH.extOpt 	= TIM_NOTHING;
+	cfgMATCH.matchValue = 125000; 		//Interrupcion cada 10ms
+
+
+	TIM_InitTimer(LPC_TIM0, &cfgTIM0);
+	TIM_ConfigMatch(LPC_TIM0, &cfgMATCH);
+
+	//TIM_Enable(LPC_TIM0);				//¿Hace falta?
+
 }
 
 void cfgTIMER1(void){
 
-	TIM_TIMERCFG_T timer1cfg = {prescaleOpt: TIM_US, prescaleValue: 100};  // DEFINIR SI VAMOS A USAR PRESCALER
-	TIM_MATCHCFG_T match0cfg;
-	TIM_MATCHCFG_T match1cfg;
+	TIM_TIMERCFG_T cfgTIM1;
+	cfgTIM1.prescaleOpt 	= TIM_US;
+	cfgTIM1.prescaleValue 	= 100;
 
-	match0cfg.channel = 0;			// USO MAT1.0 para T
-	match0cfg.intEn = DISABLE;
-	match0cfg.stopEn = DISABLE;
-	match0cfg.resetEn = ENABLE;
-	match0cfg.extOpt = 0;
-	match0cfg.matchValue = 100;
 
-	match1cfg.channel = 1;			// USO MAT1.1 para el duty cycle
-	match1cfg.intEn = ENABLE;
-	match1cfg.stopEn = DISABLE;
-	match1cfg.resetEn = ENABLE;
-	match1cfg.extOpt = 0;
-	match1cfg.matchValue = 50;
-	//ES EN ESTE CASO QUE MATCHVALUE DEBE VALES LO QUE SE INGRESE DEL UART
+	TIM_MATCHCFG_T cfgMATCH0;
+	cfgMATCH0.channel 		= 0;			// USO MAT1.0 para periodo completo (util para reiniciar)
+	cfgMATCH0.intEn 		= DISABLE;
+	cfgMATCH0.stopEn 		= DISABLE;
+	cfgMATCH0.resetEn 		= ENABLE;
+	cfgMATCH0.extOpt 		= 0;
+	cfgMATCH0.matchValue 	= 100;
 
-	NVIC_EnableIRQ(TIMER1_IRQn);
+	TIM_MATCHCFG_T cfgMATCH1;
+	cfgMATCH1.channel 		= 1;			// USO MAT1.1 para el duty cycle
+	cfgMATCH1.intEn 		= ENABLE;
+	cfgMATCH1.stopEn 		= DISABLE;
+	cfgMATCH1.resetEn 		= ENABLE;
+	cfgMATCH1.extOpt 		= 0;
+	cfgMATCH1.matchValue 	= 50;		//PROVISORIO: Ya que este matchValue debe valer lo que se ingrese por el UART
 
-	TIM_InitTimer(LPC_TIM1, &timer1cfg);
-	TIM_ConfigMatch(LPC_TIM1, &match0cfg);
-	TIM_ConfigMatch(LPC_TIM1, &match1cfg);
-	TIM_Enable(LPC_TIM1);
+	TIM_InitTimer(LPC_TIM1, &cfgTIM1);
+	TIM_ConfigMatch(LPC_TIM1, &cfgMATCH0);
+	TIM_ConfigMatch(LPC_TIM1, &cfgMATCH1);
+
+	//TIM_Enable(LPC_TIM1);				//¿Hace falta?
 }
 
-//usamos el adc para tomar muestras del valor detectado por el sensor infrarrojo en ese momento
-//y poder calcular la distancia
-//utilizamos el timer para iniciar la conversion del adc, asi q deshabilitamos la interrupciondel adc
-void cfgADC(){
-	ADC_Init(200000);
-	ADC_PinConfig(ADC_CHANNEL_0);
-	ADC_BurstDisable();
-	ADC_StartCmd(ADC_START_NOW); //o ADC_START_NOW y entro a la interrupcion del timer
-	ADC_ChannelEnable(ADC_CHANNEL_0);
-	ADC_EdgeStartConfig(ADC_START_ON_RISING);
-	ADC_IntDisable(ADC_INT_CH0); //o disable si uso el START_NOW
+/* ==========================================================
+ *                       CONVERSORES
+ * ==========================================================
+ */
 
-	//NVIC_EnableIRQ(ADC_IRQn);
-	//NVIC_Clear_PendingIRQ(ADC_IRQn);
-	//NVIC_SetPriority(); //para cuando unamos el proyecto
+//ADC: Tomar muestras del valor detectado por el sensor infrarrojo en "x" momento y poder calcular la distancia (Sin usar modo BURST)
+
+void cfgADC(void){
+	ADC_Init(200000);							//frecuenciaMaximaPosible = 200 [kHz]
+	ADC_PinConfig(ADC_CHANNEL_0);
+	ADC_ChannelEnable(ADC_CHANNEL_0);
+	ADC_BurstDisable();
+	ADC_StartCmd(ADC_START_NOW); 				//o ADC_START_NOW y entro a la interrupcion del timer
+	ADC_EdgeStartConfig(ADC_START_ON_RISING);
+	ADC_IntDisable(ADC_INT_CH0); 				//o disable si uso el START_NOW
 
 	ADC_PowerUp(); //capaz lo tenemos q poner en otro lado dsp
 }
 
-void cfgDAC(){
+void cfgDAC(void){
 	DAC_CONVERTER_CFG_T dacCFG;
 	dacCFG.doubleBuffer = DISABLE;
 	dacCFG.dmaCounter = DISABLE;
@@ -130,6 +167,11 @@ void cfgDAC(){
 	DAC_ConfigDAConverterControl(&dacCFG);
 	DAC_SetBias(DAC_700uA);
 }
+
+/* ==========================================================
+ *                          DMA
+ * ==========================================================
+ */
 
 void cfgDMA(){
 	GPDMA_Endpoint_T scrCFG;
@@ -159,13 +201,11 @@ void cfgDMA(){
 	GPDMA_Init();
 	GPDMA_SetupChannel(&dmaCFG);
 
-	NVIC_EnableIRQ(DMA_IRQn);
-	NVIC_ClearPendingIRQ(DMA_IRQn);
-	NVIC_SetPriority(DMA_IRQn, 1); //para cuando unamos el proyecto
 }
 
-/*
- * =========================HANDLERs=========================
+/* ==========================================================
+ *                        HANDLERs
+ * ==========================================================
  */
 
 void TIMER0_IRQHandler(void){
@@ -202,9 +242,4 @@ void DMA_IRQHandler(void){
 		GPDMA_ClearIntPending(GPDMA_CLR_INTERR, GPDMA_CH_0);
 	}
 }
-
-void testearDistancia(){
-	return;
-}
-
 
