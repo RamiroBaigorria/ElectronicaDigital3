@@ -10,12 +10,15 @@
 #include "lpc17xx_timer.h"
 #include "lpc17xx_dac.h"
 #include "lpc17xx_gpdma.h"
+#include "lpc17xx_uart.h"
 
 // Definición de alias para los pines físicos del microcontrolador
-#define PIN_MOTOR_IZQ_A    (1 << 0)   // Pin P0.0
-#define PIN_MOTOR_IZQ_B    (1 << 1)   // Pin P0.1
-#define PIN_MOTOR_DER_A    (1 << 2)   // Pin P0.2
-#define PIN_MOTOR_DER_B    (1 << 3)   // Pin P0.3
+#define PIN_MOTOR_IZQ_A    (1 << 0)   // Pin P1.0
+#define PIN_MOTOR_IZQ_B    (1 << 1)   // Pin P1.1
+#define PIN_MOTOR_DER_A    (1 << 2)   // Pin P1.2
+#define PIN_MOTOR_DER_B    (1 << 3)   // Pin P1.3
+
+#define TRANSFERSIZE 10
 
 #define LIMITE_OBSTACULO   1850  	// Equivale a 20 cm medidos en el laboratorio (REALIZAR LA MEDICION REAL NOSOTROS MISMOS, ESTE ES UN VALOR COMUN pero NO SIEMPRE CIERTO)
 								 	// Poner el auto frente a una pared a la distancia exacta a la que queremos que doble (Ejemplo: 20 cm).
@@ -25,24 +28,25 @@
 uint32_t variableUsadaParaDAC = 0; 	// La usaremos mas adelante en algun momento (NO SE USA TODAVIA)
 uint32_t adc_buffer[10]; 			// Buffer en RAM para almacenar las distancias
 
-void cfgPIN(void);
-void cfgTIMER0(void);
-void cfgTIMER1(void);
-void cfgADC(void);
-void cfgDAC(void);
-void cfgDMA(void);
-void cfgNVIC(void);
-void cfgPinesMOTOR(void);
+void configPIN(void);
+void configTIMER0(void);
+void configTIMER1(void);
+void configADC(void);
+void configDAC(void);
+void configDMA(void);
+void configNVIC(void);
+void configUART(void);
 
 int main(void) {
 
-	cfgPIN();
-	cfgTIMER0();
-	cfgTIMER1();
-	cfgADC();
-	cfgDAC();
-	cfgDMA();
-	cfgNVIC();
+	configPIN();
+	configTIMER0();
+	configTIMER1();
+	configADC();
+	configDAC();
+	configDMA();
+	configNVIC();
+	configUART();
 
 	while(1){
 		return 0 ;
@@ -54,22 +58,43 @@ int main(void) {
  * ==========================================================
  */
 
-void cfgPIN(void){
-	PINSEL_CFG_T cfgPINSEL;
-		cfgPINSEL.port 		= PORT_0;
-		cfgPINSEL.pin  		= PIN_0;
-		cfgPINSEL.func 		= PINSEL_FUNC_00;
-		cfgPINSEL.mode 		= PINSEL_TRISTATE;
-		cfgPINSEL.openDrain = DISABLE;
+void configPIN(void){
+	PINSEL_CFG_T cfgPIN0;// Configuracion del pin P0.0 como GPIO
+		cfgPIN0.port 		= PORT_0;
+		cfgPIN0.pin  		= PIN_0;
+		cfgPIN0.func 		= PINSEL_FUNC_00;
+		cfgPIN0.mode 		= PINSEL_TRISTATE;
+		cfgPIN0.openDrain 	= DISABLE;
 
-	PINSEL_ConfigPin(&cfgPINSEL);
+	PINSEL_CFG_T cfgPIN2;// Configuracion del pin P0.2 como TXD0
+		cfgPIN2.port 		= PORT_0;
+		cfgPIN2.mode 		= PINSEL_TRISTATE;
+		cfgPIN2.openDrain	= DISABLE;
+		cfgPIN2.pin 		= PIN_2;			// Configurar P0.2 como TXD0
+		cfgPIN2.func 		= PINSEL_FUNC_01;	// Función 01 selecciona UART0 TX
+
+
+	PINSEL_CFG_T cfgPIN3;// Configuracion del pin P0.3 como RXD0
+		cfgPIN3.port 		= PORT_0;
+		cfgPIN3.mode 		= PINSEL_TRISTATE;
+		cfgPIN3.openDrain	= DISABLE;
+		cfgPIN3.pin 		= PIN_3;			// Configurar P0.3 como RXD0
+		cfgPIN3.func 		= PINSEL_FUNC_01;	// Función 01 selecciona UART0 TX
+
+
+	PINSEL_ConfigPin(&cfgPIN2);
+	PINSEL_ConfigPin(&cfgPIN3);
+	PINSEL_ConfigPin(&cfgPIN0);
+
+	GPIO_SetDir(PORT_1, PIN_MOTOR_IZQ_A | PIN_MOTOR_IZQ_B | PIN_MOTOR_DER_A | PIN_MOTOR_DER_B, GPIO_OUTPUT);	// Configurar los 4 pines de control de motores como salida
+	GPIO_ClearPins(PORT_1, PIN_MOTOR_IZQ_A | PIN_MOTOR_IZQ_B | PIN_MOTOR_DER_A | PIN_MOTOR_DER_B);				// Estado inicial seguro: Todo apagado (Auto frenado)
 
 	GPIO_SetDir(PORT_0, 1<<0, GPIO_OUTPUT);
 	GPIO_SetPinState(PORT_0, 1<<0, SET);
 	GPIO_ClearPins(PORT_0, 0x400000);
 }
 
-void cfgNVIC(void){
+void configNVIC(void){
 	//Prioridades PROVISORIAS
 
 	NVIC_EnableIRQ(TIMER0_IRQn);
@@ -91,6 +116,27 @@ void cfgNVIC(void){
 
 }
 
+void configUART(void){ //Estos drivers son del fabricante, no de Trujillo (No se si el tiene)
+
+	    UART_CFG_T cfgUART;
+	    cfgUART.baudRate = 9600;             	// Velocidad estándar de fábrica de los módulos Bluetooth
+	    cfgUART.parity   = UART_PARITY_NONE;   	// Sin bit de paridad
+	    cfgUART.dataBits = UART_DBITS_8;     	// 8 bits de datos
+	    cfgUART.stopBits = UART_STOPBIT_1;     	// 1 bit de parada
+
+	    UART_ConfigStructInit(&cfgUART);	// Verificar bien esta funcion de carga de formulario, porque me figura error
+
+	    UART_PinConfig(UART_TX0_P0_2);		// Es lo mismo que el "PINSEL_CFG_T cfgPIN2" del "void cfgPIN(void)"
+	    UART_PinConfig(UART_RX0_P0_3);		// Es lo mismo que el "PINSEL_CFG_T cfgPIN3" del "void cfgPIN(void)"
+
+	    UART_Init(LPC_UART0, &cfgUART);		// Inicializar físicamente el periférico UART0
+
+	    UART_TxCmd(LPC_UART0, ENABLE);		// Habilitar la transmisión y recepción (Línea obligatoria de CMSIS)
+
+	    UART_IntConfig(LPC_UART0, UART_INTCFG_RBR, ENABLE); // Habilitar interrupción específica por RECEPCIÓN (RBR) en el periférico
+	    													// Esto hace que la UART avise cuando "llegó un dato"
+}
+
 void testearDistancia(){
 	return;
 }
@@ -100,7 +146,7 @@ void testearDistancia(){
  * ==========================================================
  */
 
-void cfgTIMER0(void){
+void configTIMER0(void){
 	TIM_TIMERCFG_T cfgTIM0;
 	cfgTIM0.prescaleOpt	 = TIM_US;
 	cfgTIM0.prescaleValue = 1; 			//PROVISORIO: cambiar si es necesario
@@ -111,7 +157,7 @@ void cfgTIMER0(void){
 	cfgMATCH.stopEn 	= DISABLE;
 	cfgMATCH.resetEn 	= ENABLE;
 	cfgMATCH.extOpt 	= TIM_NOTHING;
-	cfgMATCH.matchValue = 10000; 		//Interrupcion cada 10ms
+	cfgMATCH.matchValue = 100000; 		//Interrupcion cada 100ms
   //cfgMATCH.matchValue = 125000; 	no me parece correcto, con el prescaler en 1 , 125mil tics son 125[mS]
 
 
@@ -122,7 +168,7 @@ void cfgTIMER0(void){
 
 }
 
-void cfgTIMER1(void){
+void configTIMER1(void){
 
 	TIM_TIMERCFG_T cfgTIM1;
 	cfgTIM1.prescaleOpt 	= TIM_US;
@@ -159,28 +205,28 @@ void cfgTIMER1(void){
 
 //ADC: Tomar muestras del valor detectado por el sensor infrarrojo en "x" momento y poder calcular la distancia (Sin usar modo BURST)
 
-void cfgADC(void){
+void configADC(void){
 	ADC_Init(200000);							//frecuenciaMaximaPosible = 200 [kHz]
 	ADC_PinConfig(ADC_CHANNEL_0);
 	ADC_ChannelEnable(ADC_CHANNEL_0);
 	ADC_BurstDisable();
-	ADC_StartCmd(ADC_START_NOW);
-	ADC_EdgeStartConfig(ADC_START_ON_RISING);
+  //ADC_StartCmd(ADC_START_ON_MAT01);			//Puse el ADC_PowerUp() directamente en el HANDLER del TIMER0 y nos evitamos el ADC_StartCmd(...)
+  //ADC_EdgeStartConfig(ADC_START_ON_RISING);
 	ADC_IntDisable(ADC_INT_CH0);
+  //ADC_PowerUp(); 								//Lo puse directamente en el HANDLER del TIMER0 y nos evitamos el ADC_StartCmd(...)
 
-	ADC_PowerUp(); //capaz lo tenemos q poner en otro lado dsp
 }
 
-void cfgDAC(void){
+void configDAC(void){
 
 	DAC_Init();
-	DAC_CONVERTER_CFG_T dacCFG;
-	dacCFG.doubleBuffer = DISABLE;
-	dacCFG.dmaCounter = DISABLE;
-	dacCFG.dmaRequest = DISABLE;
+	DAC_CONVERTER_CFG_T cfgDAC;
+	cfgDAC.doubleBuffer = DISABLE;
+	cfgDAC.dmaCounter = DISABLE;
+	cfgDAC.dmaRequest = DISABLE;
 
 	DAC_SetBias(DAC_700uA);
-	DAC_ConfigDAConverterControl(&dacCFG);
+	DAC_ConfigDAConverterControl(&cfgDAC);
 	DAC_UpdateValue(variableUsadaParaDAC);			//Aca va a ir la variable que vamos a determinar en otro lugar, que va a salir por el DAC
 
 }
@@ -192,7 +238,7 @@ void cfgDAC(void){
 
 //DMA: Utilizamos el DMA para pasar las muestras del ADC al DAC
 
-void cfgDMA(){
+void configDMA(){
 
 	GPDMA_Channel_CFG_T dmaCFG;
 
@@ -215,7 +261,7 @@ void cfgDMA(){
 
 	GPDMA_Channel_CFG_T cfgDMA;
 		cfgDMA.channelNum = GPDMA_CH_1;
-		cfgDMA.transferSize = 10;                  	// Almacenar 10 muestras consecutivas
+		cfgDMA.transferSize = TRANSFERSIZE;                  	// Almacenar 10 muestras consecutivas
 		cfgDMA.type = GPDMA_P2M;                   	// De Periférico (ADC) a Memoria (RAM)
 		cfgDMA.srcMemAddr = 0;
 		cfgDMA.dstMemAddr = (uint32_t) adc_buffer;  // Destino: nuestro vector en RAM
@@ -242,20 +288,32 @@ void cfgDMA(){
  */
 
 void TIMER0_IRQHandler(void){
-	ADC_StartCmd(ADC_START_NOW);
-	if(ADC_ChannelGetStatus(ADC_CHANNEL_0, ADC_DATA_DONE)){
+
+	if(TIM_GetIntStatus(LPC_TIM0, TIM_MR1_INT) == 1){
+			ADC_PowerUp();
+			TIM_ClearIntPending(LPC_TIM0, TIM_MR1_INT);
+		}
+}
+
+void ADC_IRQHandler(void){
+
+	if(ADC_ChannelGetStatus(ADC_CHANNEL_0, ADC_DATA_DONE) == 1){
+
 		adcValue = ADC_ChannelGetData(ADC_CHANNEL_0);
+		GPDMA_ChannelStart(GPDMA_CH_1);
 	}
 
-	//DAC_UpdateValue((adcValue << 2)); //provisorio, dsp lo tenemos q hacer bien
-	GPDMA_ChannelStart(GPDMA_CH_0);
-
-	TIM_ClearIntPending(LPC_TIM0, TIM_MR1_INT);
 }
 
 void TIMER1_IRQHandler(void){
-	if(TIM_GetIntStatus(LPC_TIM1, TIM_MR1_INT) == SET){
-		GPIO_ClearPins(PORT_0,1<<0);
+	if(TIM_GetIntStatus(LPC_TIM1, TIM_MR1_INT) == 1){
+		GPIO_ClearPins(PORT_0, 1<<0);
+
+		/*
+		 * LOGICA DEL DUTY CYCLE
+		 */
+
+
 		TIM_ClearIntPending(LPC_TIM1, TIM_MR1_INT);
 	}
 }
@@ -284,27 +342,27 @@ void DMA_IRQHandler(void){
 
 			// Calcular promedio de las 10 muestras para evitar ruidos (Moving Average)
 	        static uint32_t i = 0;
-	        static uint32_t suma = 0;
-	        static uint32_t promedio_distancia = 0;
+	        uint32_t suma = 0;
+	        uint32_t promedio_distancia = 0;
 
-	        for(int i=0; i<10; i++) {
+	        for(int i=0; i<TRANSFERSIZE; i++) {
 	            suma += adc_buffer[i];
 	        }
-	        promedio_distancia = suma / 10;	//Moving Average
+	        promedio_distancia = suma / TRANSFERSIZE;	//Moving Average
 
 	        	// Rango límite: El objeto está muy cerca
 				if (promedio_distancia > LIMITE_OBSTACULO) {
 					// Frenar un motor y activar el otro para pivotear (girar)
-					GPIO_SetPins  (PORT_0, PIN_MOTOR_IZQ_A); // Giro horario
-					GPIO_ClearPins(PORT_0, PIN_MOTOR_IZQ_B);
-					GPIO_ClearPins(PORT_0, PIN_MOTOR_DER_A); // Frena motor derecho para girar
-					GPIO_ClearPins(PORT_0, PIN_MOTOR_DER_B);
+					GPIO_SetPins  (PORT_1, PIN_MOTOR_IZQ_A); // Giro horario
+					GPIO_ClearPins(PORT_1, PIN_MOTOR_IZQ_B);
+					GPIO_ClearPins(PORT_1, PIN_MOTOR_DER_A); // Frena motor derecho para girar
+					GPIO_ClearPins(PORT_1, PIN_MOTOR_DER_B);
 				} else {
 					// Seguir marchando hacia adelante
-					GPIO_SetPins  (PORT_0, PIN_MOTOR_IZQ_A); // Giro horario
-					GPIO_ClearPins(PORT_0, PIN_MOTOR_IZQ_B);
-					GPIO_SetPins  (PORT_0, PIN_MOTOR_DER_A); // Giro horario
-					GPIO_ClearPins(PORT_0, PIN_MOTOR_DER_B);
+					GPIO_SetPins  (PORT_1, PIN_MOTOR_IZQ_A); // Giro horario
+					GPIO_ClearPins(PORT_1, PIN_MOTOR_IZQ_B);
+					GPIO_SetPins  (PORT_1, PIN_MOTOR_DER_A); // Giro horario
+					GPIO_ClearPins(PORT_, PIN_MOTOR_DER_B);
 				}
 
 	        // Limpiar bandera y volver a encender el canal para la próxima ráfaga de mediciones
